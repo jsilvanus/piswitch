@@ -1,6 +1,7 @@
 import { Atem } from "atem-connection";
 import type {
   DownstreamKeySetup,
+  MediaPlayerInfo,
   VideoMixerAdapter,
   VideoMixerDownstreamKeyerState,
   VideoMixerFadeToBlackState,
@@ -31,6 +32,7 @@ export interface AtemClient {
   readonly state: unknown;
   on(event: string, listener: (...args: never[]) => void): unknown;
   uploadStill?(index: number, data: Buffer, name: string, description: string): Promise<unknown>;
+  clearMediaPoolStill?(stillId: number): Promise<void>;
   setMediaPlayerSource?(props: { sourceType: number; stillIndex: number }, player?: number): Promise<void>;
   setDownstreamKeyFillSource?(input: number, key?: number): Promise<void>;
   setDownstreamKeyCutSource?(input: number, key?: number): Promise<void>;
@@ -288,6 +290,38 @@ export class AtemAdapter implements VideoMixerAdapter {
     await client.setMediaPlayerSource({ sourceType: 1, stillIndex: setup.stillIndex }, setup.mediaPlayer);
     await client.setDownstreamKeyFillSource(setup.fillInput, setup.dsk);
     await client.setDownstreamKeyCutSource(setup.cutInput, setup.dsk);
+  }
+
+  async clearStill(stillIndex: number): Promise<void> {
+    this.requireConnected();
+    const client = this.requireClient();
+    if (!client.clearMediaPoolStill) throw new Error("ATEM client does not support clearing stills");
+    await client.clearMediaPoolStill(stillIndex);
+  }
+
+  async setMediaPlayerSource(player: number, stillIndex: number): Promise<void> {
+    this.requireConnected();
+    const client = this.requireClient();
+    if (!client.setMediaPlayerSource) throw new Error("ATEM client does not support media player source control");
+    await client.setMediaPlayerSource({ sourceType: 1, stillIndex }, player);
+  }
+
+  getMediaPlayers(): MediaPlayerInfo[] {
+    const rawState = this.client?.state as { media?: { players?: Array<{ playing?: boolean; loop?: boolean; stillIndex?: number; clipIndex?: number; sourceType?: number }> } } | undefined;
+    const players = rawState?.media?.players;
+    if (!Array.isArray(players) || players.length === 0) {
+      return [
+        { player: 1, playing: false, loop: false, sourceType: "still", stillSlot: 1 },
+        { player: 2, playing: false, loop: false, sourceType: "still", stillSlot: null },
+      ];
+    }
+    return players.map((p, idx) => ({
+      player: idx + 1,
+      playing: Boolean(p?.playing),
+      loop: Boolean(p?.loop),
+      sourceType: p?.sourceType === 2 ? "clip" : "still",
+      stillSlot: p?.stillIndex != null ? p.stillIndex + 1 : null,
+    }));
   }
 
   private requireClient(): AtemClient {

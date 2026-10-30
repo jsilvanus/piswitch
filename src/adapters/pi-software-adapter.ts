@@ -1,5 +1,6 @@
 import type {
   DownstreamKeySetup,
+  MediaPlayerInfo,
   VideoMixerAdapter,
   VideoMixerInput,
   VideoMixerState,
@@ -162,6 +163,22 @@ export class PiSoftwareAdapter implements VideoMixerAdapter {
   async uploadStill(slotIndex: number, rgba: Buffer, name: string): Promise<void> {
     this.uploadedStills.set(slotIndex, { data: rgba, name });
     this.notify();
+  }
+
+  async clearStill(slotIndex: number): Promise<void> {
+    this.uploadedStills.delete(slotIndex);
+    this.notify();
+  }
+
+  async setMediaPlayerSource(_player: number, _slotIndex: number): Promise<void> {
+    this.notify();
+  }
+
+  getMediaPlayers(): MediaPlayerInfo[] {
+    return [
+      { player: 1, playing: false, loop: false, sourceType: "still", stillSlot: 1 },
+      { player: 2, playing: false, loop: false, sourceType: "still", stillSlot: null },
+    ];
   }
 
   // Phone Camera & Dynamic Source Management

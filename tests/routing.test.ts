@@ -68,3 +68,53 @@ test("GET and PUT /api/v1/video-mixer/routing manages config and reservations at
 
   await app.close();
 });
+
+test("MatrixRouter - auto-routes matrix when pastorphone / RTMP camera is selected", async () => {
+  const matrixCalls: any[] = [];
+  const fakeFetch: typeof fetch = async (url, init) => {
+    matrixCalls.push({ url: String(url), body: JSON.parse(String(init?.body ?? "{}")) });
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  };
+
+  const mixer = new MockAdapter();
+  const store = new RoutingStore();
+  const config = loadConfig({
+    PISWITCH_BACKEND: "mock",
+    PISWITCH_PIGATEWAY_URL: "http://gateway.test:3100",
+  });
+
+  const { MatrixRouter } = await import("../src/routing/matrix-router.js");
+  const matrixRouter = new MatrixRouter(config, store, fakeFetch);
+
+  const { registerVideoMixerRoutes } = await import("../src/routes/video-mixer-routes.js");
+  const Fastify = (await import("fastify")).default;
+  const app = Fastify();
+  registerVideoMixerRoutes(app, mixer, { matrixRouter, routingStore: store });
+
+  // 1. Preview cam1 directly
+  const cam1Res = await app.inject({
+    method: "PUT",
+    url: "/api/v1/video-mixer/preview",
+    payload: { input: "cam1" },
+  });
+  assert.equal(cam1Res.statusCode, 200);
+  assert.equal(mixer.getState().previewInput, 1);
+  assert.equal(matrixCalls.length, 0); // No matrix routing needed for direct SDI cam1
+
+  // 2. Preview pastorphone (RTMP/phone source)
+  const pastorRes = await app.inject({
+    method: "PUT",
+    url: "/api/v1/video-mixer/preview",
+    payload: { input: "pastorphone" },
+  });
+  assert.equal(pastorRes.statusCode, 200);
+  assert.equal(mixer.getState().previewInput, 5); // phone input ID
+
+  // Verify piswitch ran the matrix route command:
+  assert.equal(matrixCalls.length, 1);
+  assert.equal(matrixCalls[0].url, "http://gateway.test:3100/api/v1/matrix/route");
+  assert.equal(matrixCalls[0].body.input, 3); // Atlona input for Pi1
+  assert.equal(matrixCalls[0].body.output, 5); // Atlona output for Videomixer
+
+  await app.close();
+});

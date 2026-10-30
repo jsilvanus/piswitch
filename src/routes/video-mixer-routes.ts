@@ -1,19 +1,55 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { VideoMixerAdapter } from "../types.js";
 import { PiSoftwareAdapter } from "../adapters/pi-software-adapter.js";
+import type { MatrixRouter } from "../routing/matrix-router.js";
+import type { RoutingStore } from "../routing/routing-store.js";
 
 export interface VideoMixerRouteOptions {
   maxInput?: number;
+  matrixRouter?: MatrixRouter | undefined;
+  routingStore?: RoutingStore | undefined;
 }
 
 const DEFAULT_MAX_INPUT = 40;
 const MAX_DSK = 4;
 const MAX_STILL_BYTES = 64 * 1024 * 1024;
 
-function parseInput(value: unknown, max: number): number | null {
-  const input = typeof value === "number" ? value : Number(value);
-  if (!Number.isInteger(input) || input < 1 || input > max) return null;
-  return input;
+function resolveMixerInput(
+  value: unknown,
+  mixer: VideoMixerAdapter,
+  max: number
+): { inputId: number | null; isDynamic?: boolean } {
+  if (typeof value === "number") {
+    if (Number.isInteger(value) && value >= 1 && value <= max) {
+      const inputs = mixer.getState().inputs ?? [];
+      const match = inputs.find((i) => i.id === value);
+      const isDynamic = match?.kind === "phone" || match?.kind === "rtsp";
+      return { inputId: value, isDynamic };
+    }
+    return { inputId: null };
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim().toLowerCase();
+    const num = Number(trimmed);
+    if (!isNaN(num) && Number.isInteger(num) && num >= 1 && num <= max) {
+      return { inputId: num };
+    }
+
+    // Direct camera names
+    if (trimmed === "cam1" || trimmed === "altar" || trimmed === "camera1") return { inputId: 1 };
+    if (trimmed === "cam2" || trimmed === "pulpit" || trimmed === "camera2") return { inputId: 2 };
+    if (trimmed === "cam3" || trimmed === "camera3") return { inputId: 3 };
+
+    // Dynamic / RTMP / Phone camera sources
+    if (trimmed.includes("pastor") || trimmed.includes("phone")) {
+      const inputs = mixer.getState().inputs ?? [];
+      const phoneInput = inputs.find((i) => i.kind === "phone" || i.name.toLowerCase().includes("phone"));
+      return { inputId: phoneInput?.id ?? 5, isDynamic: true };
+    }
+  }
+
+  return { inputId: null };
 }
 
 function parseDsk(value: unknown): number | null {
@@ -54,27 +90,37 @@ export function registerVideoMixerRoutes(
 
     // 2. PUT program
     app.put<{ Body: { input?: unknown } }>(`${prefix}/program`, async (request, reply) => {
-      const input = parseInput(request.body?.input, maxInput);
-      if (input === null) {
+      const { inputId, isDynamic } = resolveMixerInput(request.body?.input, mixer, maxInput);
+      if (inputId === null) {
         return reply.code(422).send({
           error: { code: "INVALID_INPUT", message: `Mixer input must be an integer between 1 and ${maxInput}` },
         });
       }
       if (!mixer.getState().connected) return notConnected(reply, isAtem);
-      await mixer.setProgram(input);
+
+      if (isDynamic && options.matrixRouter) {
+        await options.matrixRouter.routeForInput(inputId);
+      }
+
+      await mixer.setProgram(inputId);
       return reply.code(200).send(mixer.getState());
     });
 
     // 3. PUT preview
     app.put<{ Body: { input?: unknown } }>(`${prefix}/preview`, async (request, reply) => {
-      const input = parseInput(request.body?.input, maxInput);
-      if (input === null) {
+      const { inputId, isDynamic } = resolveMixerInput(request.body?.input, mixer, maxInput);
+      if (inputId === null) {
         return reply.code(422).send({
           error: { code: "INVALID_INPUT", message: `Mixer input must be an integer between 1 and ${maxInput}` },
         });
       }
       if (!mixer.getState().connected) return notConnected(reply, isAtem);
-      await mixer.setPreview(input);
+
+      if (isDynamic && options.matrixRouter) {
+        await options.matrixRouter.routeForInput(inputId);
+      }
+
+      await mixer.setPreview(inputId);
       return reply.code(200).send(mixer.getState());
     });
 

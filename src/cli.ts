@@ -184,6 +184,59 @@ export async function runCli(argv: string[]): Promise<number> {
         return 1;
       }
 
+      case "media-pool":
+      case "pool": {
+        const res = await request(opts, "GET", "/api/v1/video-mixer/media-pool");
+        if (opts.json) {
+          console.log(JSON.stringify(res, null, 2));
+        } else {
+          console.log("=== ATEM Media Pool & Player ===");
+          console.log(`Connected:      ${res.connected ? "YES" : "NO"}`);
+          console.log(`Total Slots:    ${res.config?.totalSlots}`);
+          console.log(`Slides Pool:    Slots ${res.config?.slides?.startSlot}..${res.config?.slides?.endSlot} (6-slot circular)`);
+          console.log(`Graphics Pool:  Slots ${res.config?.graphics?.startSlot}..${res.config?.graphics?.endSlot} (18 slots)`);
+          console.log(`Active Slide:   Slot ${res.slideBuffer?.activeSlot} (Seq: ${res.slideBuffer?.sequence})`);
+          if (res.mediaPlayers && res.mediaPlayers.length > 0) {
+            console.log("\nMedia Players:");
+            for (const p of res.mediaPlayers) {
+              console.log(`  Player ${p.player}: Still Slot ${p.stillSlot ?? "-"} (${p.sourceType})`);
+            }
+          }
+        }
+        return 0;
+      }
+
+      case "slide": {
+        const sub = opts.args[1] || "advance";
+        if (sub === "advance") {
+          const targetSlot = opts.args[2] ? Number(opts.args[2]) : undefined;
+          const body = targetSlot ? { slot: targetSlot } : {};
+          const res = await request(opts, "POST", "/api/v1/video-mixer/media-pool/slides/advance", body);
+          if (opts.json) console.log(JSON.stringify(res, null, 2));
+          else {
+            console.log(`Slide advanced to Slot ${res.activeSlot} (Sequence ${res.sequence})`);
+            if (res.clearedSlot) console.log(`Auto-cleared stale Slot ${res.clearedSlot}`);
+            console.log(`Next upload slot: Slot ${res.nextUploadSlot}`);
+          }
+          return 0;
+        }
+        console.error("Usage: piswitch slide advance [targetSlot]");
+        return 1;
+      }
+
+      case "player": {
+        const player = Number(opts.args[1]);
+        const slot = Number(opts.args[2]);
+        if (!Number.isInteger(player) || !Number.isInteger(slot)) {
+          console.error("Usage: piswitch player <1-4> <slotNumber>");
+          return 1;
+        }
+        const res = await request(opts, "PUT", `/api/v1/video-mixer/media-players/${player}/source`, { slot });
+        if (opts.json) console.log(JSON.stringify(res, null, 2));
+        else console.log(`Media Player ${player} pointed to Slot ${slot}`);
+        return 0;
+      }
+
       case "help":
       default: {
         console.log("Usage: piswitch <command> [options]");
@@ -195,6 +248,9 @@ export async function runCli(argv: string[]): Promise<number> {
         console.log("  auto                       Trigger AUTO transition");
         console.log("  ftb                        Toggle Fade to Black");
         console.log("  dsk <1-4> [tie] on|off     Control Downstream Keyer on-air or tie");
+        console.log("  media-pool                 Show ATEM Media Pool slots and Media Players");
+        console.log("  slide advance [slot]       Advance circular slide buffer and auto-reclaim stale slots");
+        console.log("  player <1-4> <slot>        Point Media Player directly to a still slot");
         console.log("  phone add <id> <name> [url] Register a phone camera feed");
         console.log("  phone remove <id>          Remove a phone camera feed");
         console.log("\nOptions:");

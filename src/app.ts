@@ -6,16 +6,20 @@ import { AtemAdapter } from "./adapters/atem-adapter.js";
 import { PiSoftwareAdapter } from "./adapters/pi-software-adapter.js";
 import { MockAdapter } from "./adapters/mock-adapter.js";
 import { RoutingStore } from "./routing/routing-store.js";
+import { MatrixRouter } from "./routing/matrix-router.js";
 import { registerStatusRoutes } from "./routes/status-routes.js";
 import { registerEventsRoutes } from "./routes/events-routes.js";
 import { registerVideoMixerRoutes } from "./routes/video-mixer-routes.js";
 import { registerRoutingRoutes } from "./routes/routing-routes.js";
+import { registerMediaPoolRoutes } from "./routes/media-pool-routes.js";
+import { MediaPoolManager } from "./media-pool/media-pool-manager.js";
 
 export interface BuildAppResult {
   app: FastifyInstance;
   mixer: VideoMixerAdapter;
   eventBroker: SwitchEventBroker;
   routingStore: RoutingStore;
+  mediaPoolManager: MediaPoolManager;
 }
 
 export function buildApp(config: AppConfig, customMixer?: VideoMixerAdapter, customRoutingStore?: RoutingStore): BuildAppResult {
@@ -78,11 +82,15 @@ export function buildApp(config: AppConfig, customMixer?: VideoMixerAdapter, cus
     });
   }
 
+  const matrixRouter = new MatrixRouter(config, routingStore);
+  const mediaPoolManager = new MediaPoolManager(mixer);
+
   // Register routes
   registerStatusRoutes(app, mixer);
   registerEventsRoutes(app, eventBroker, mixer);
-  registerVideoMixerRoutes(app, mixer);
+  registerVideoMixerRoutes(app, mixer, { matrixRouter, routingStore });
   registerRoutingRoutes(app, routingStore);
+  registerMediaPoolRoutes(app, mediaPoolManager, mixer);
 
-  return { app, mixer, eventBroker, routingStore };
+  return { app, mixer, eventBroker, routingStore, mediaPoolManager };
 }

@@ -1,5 +1,6 @@
 import type {
   DownstreamKeySetup,
+  MediaPlayerInfo,
   VideoMixerAdapter,
   VideoMixerInput,
   VideoMixerState,
@@ -29,6 +30,10 @@ export class MockAdapter implements VideoMixerAdapter {
   private inputs: VideoMixerInput[];
   private listeners: VideoMixerStateListener[] = [];
   public uploadedStills: Map<number, { data: Buffer; name: string }> = new Map();
+  public mediaPlayers: Map<number, { sourceType: "still" | "clip"; stillSlot: number | null }> = new Map([
+    [1, { sourceType: "still", stillSlot: 1 }],
+    [2, { sourceType: "still", stillSlot: null }],
+  ]);
 
   constructor(options: MockAdapterOptions = {}) {
     this.connected = options.connected ?? true;
@@ -120,6 +125,27 @@ export class MockAdapter implements VideoMixerAdapter {
   async uploadStill(slotIndex: number, rgba: Buffer, name: string): Promise<void> {
     this.uploadedStills.set(slotIndex, { data: rgba, name });
     this.notify();
+  }
+
+  async clearStill(slotIndex: number): Promise<void> {
+    this.uploadedStills.delete(slotIndex);
+    this.notify();
+  }
+
+  async setMediaPlayerSource(player: number, slotIndex: number): Promise<void> {
+    const p = player + 1; // Convert 0-based to 1-based
+    this.mediaPlayers.set(p, { sourceType: "still", stillSlot: slotIndex + 1 });
+    this.notify();
+  }
+
+  getMediaPlayers(): MediaPlayerInfo[] {
+    return Array.from(this.mediaPlayers.entries()).map(([player, p]) => ({
+      player,
+      playing: false,
+      loop: false,
+      sourceType: p.sourceType,
+      stillSlot: p.stillSlot,
+    }));
   }
 
   addInput(input: VideoMixerInput): void {
