@@ -12,6 +12,7 @@ export interface VideoMixerRouteOptions {
 
 const DEFAULT_MAX_INPUT = 40;
 const MAX_DSK = 4;
+const MAX_USK = 4;
 const MAX_STILL_BYTES = 64 * 1024 * 1024;
 
 function resolveMixerInput(
@@ -55,6 +56,11 @@ function resolveMixerInput(
 function parseDsk(value: unknown): number | null {
   const dsk = Number(value);
   return Number.isInteger(dsk) && dsk >= 1 && dsk <= MAX_DSK ? dsk : null;
+}
+
+function parseUsk(value: unknown): number | null {
+  const usk = Number(value);
+  return Number.isInteger(usk) && usk >= 1 && usk <= MAX_USK ? usk : null;
 }
 
 function notConnected(reply: FastifyReply, isAtemRoute: boolean): unknown {
@@ -231,6 +237,93 @@ export function registerVideoMixerRoutes(
         cutInput,
       });
       return reply.code(200).send(mixer.getState());
+    });
+
+    // 11. PUT USK on-air
+    app.put<{ Params: { usk: string }; Body: { onAir?: unknown } }>(
+      `${prefix}/usk/:usk/on-air`,
+      async (request, reply) => {
+        const usk = parseUsk(request.params.usk);
+        if (usk === null || typeof request.body?.onAir !== "boolean") {
+          return reply.code(422).send({
+            error: { code: "INVALID_REQUEST", message: `usk must be 1-${MAX_USK} and onAir must be a boolean` },
+          });
+        }
+        if (!mixer.getState().connected) return notConnected(reply, isAtem);
+        if (mixer.setUpstreamKeyOnAir) {
+          await mixer.setUpstreamKeyOnAir(usk - 1, request.body.onAir);
+        }
+        return reply.code(200).send(mixer.getState());
+      }
+    );
+
+    // 12. PUT USK setup (sources, DVE keyer type, still slot)
+    app.put<{
+      Params: { usk: string };
+      Body: {
+        mediaPlayer?: unknown;
+        slot?: unknown;
+        fillInput?: unknown;
+        cutInput?: unknown;
+        type?: unknown;
+        flyEnabled?: unknown;
+      };
+    }>(`${prefix}/usk/:usk/setup`, async (request, reply) => {
+      const usk = parseUsk(request.params.usk);
+      if (usk === null) {
+        return reply.code(422).send({
+          error: { code: "INVALID_REQUEST", message: `usk must be 1-${MAX_USK}` },
+        });
+      }
+      if (!mixer.getState().connected) return notConnected(reply, isAtem);
+
+      const { mediaPlayer, slot, fillInput, cutInput, type, flyEnabled } = request.body ?? {};
+      const mpNum = typeof mediaPlayer === "number" ? mediaPlayer - 1 : undefined;
+      const slotNum = typeof slot === "number" ? slot - 1 : undefined;
+      const fillNum = typeof fillInput === "number" ? fillInput : undefined;
+      const cutNum = typeof cutInput === "number" ? cutInput : undefined;
+      const keyType = typeof type === "string" ? (type as "dve" | "luma" | "chroma" | "pattern") : "dve";
+
+      if (mixer.setupUpstreamKey) {
+        await mixer.setupUpstreamKey({
+          usk: usk - 1,
+          mediaPlayer: mpNum,
+          stillIndex: slotNum,
+          fillInput: fillNum,
+          cutInput: cutNum,
+          type: keyType,
+          flyEnabled: flyEnabled !== false,
+        });
+      }
+      return reply.code(200).send(mixer.getState());
+    });
+
+    // 13. POST USK DVE Fly Key transition
+    app.post<{
+      Params: { usk: string };
+      Body: {
+        direction?: unknown;
+        keyFrame?: unknown;
+        rate?: unknown;
+      };
+    }>(`${prefix}/usk/:usk/fly`, async (request, reply) => {
+      const usk = parseUsk(request.params.usk);
+      if (usk === null) {
+        return reply.code(422).send({
+          error: { code: "INVALID_REQUEST", message: `usk must be 1-${MAX_USK}` },
+        });
+      }
+      if (!mixer.getState().connected) return notConnected(reply, isAtem);
+
+      const { direction, keyFrame, rate } = request.body ?? {};
+      if (mixer.runUpstreamKeyFly) {
+        await mixer.runUpstreamKeyFly(usk - 1, {
+          direction: typeof direction === "string" ? (direction as any) : undefined,
+          keyFrame: typeof keyFrame === "string" ? (keyFrame as any) : undefined,
+          rate: typeof rate === "number" ? rate : undefined,
+        });
+      }
+      return reply.code(200).send({ ok: true, usk, direction, keyFrame });
     });
   }
 

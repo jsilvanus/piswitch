@@ -32,6 +32,7 @@ export interface VideoMixerState {
   transition: VideoMixerTransitionState;
   fadeToBlack: VideoMixerFadeToBlackState;
   downstreamKeyers: VideoMixerDownstreamKeyerState[];
+  upstreamKeyers?: VideoMixerUpstreamKeyerState[];
   inputs?: VideoMixerInput[];
 }
 
@@ -41,6 +42,43 @@ export interface DownstreamKeySetup {
   stillIndex: number;
   fillInput: number;
   cutInput: number;
+}
+
+export type FlyKeyDirection =
+  | "left"
+  | "right"
+  | "top"
+  | "bottom"
+  | "centre"
+  | "top-left"
+  | "top-right"
+  | "bottom-left"
+  | "bottom-right"
+  | "a"
+  | "b"
+  | "full"
+  | "infinite";
+
+export interface UpstreamKeySetup {
+  usk: number; // 0-based
+  mediaPlayer?: number | undefined; // 0-based (0..3)
+  stillIndex?: number | undefined; // 0-based (0..63)
+  fillInput?: number | undefined; // e.g. 3010
+  cutInput?: number | undefined; // e.g. 3011
+  type?: "dve" | "luma" | "chroma" | "pattern" | undefined;
+  flyEnabled?: boolean | undefined;
+}
+
+export interface UpstreamKeyFlyOptions {
+  direction?: FlyKeyDirection | undefined;
+  keyFrame?: "a" | "b" | "full" | "infinite" | undefined;
+  rate?: number | undefined; // frames
+}
+
+export interface VideoMixerUpstreamKeyerState {
+  usk: number; // 1-based (1..4)
+  onAir: boolean;
+  flyEnabled?: boolean;
 }
 
 export type MediaPoolKind = "slides" | "graphics" | "unassigned";
@@ -97,6 +135,9 @@ export interface VideoMixerAdapter {
   setDownstreamKeyOnAir(dskIndex: number, onAir: boolean): Promise<void>;
   setDownstreamKeyTie(dskIndex: number, tie: boolean): Promise<void>;
   setupDownstreamKey(setup: DownstreamKeySetup): Promise<void>;
+  setUpstreamKeyOnAir?(uskIndex: number, onAir: boolean): Promise<void>;
+  setupUpstreamKey?(setup: UpstreamKeySetup): Promise<void>;
+  runUpstreamKeyFly?(uskIndex: number, options: UpstreamKeyFlyOptions): Promise<void>;
   uploadStill?(slotIndex: number, rgba: Buffer, name: string): Promise<void>;
   clearStill?(slotIndex: number): Promise<void>;
   setMediaPlayerSource?(player: number, slotIndex: number): Promise<void>;

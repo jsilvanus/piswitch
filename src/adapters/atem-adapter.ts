@@ -2,6 +2,8 @@ import { Atem } from "atem-connection";
 import type {
   DownstreamKeySetup,
   MediaPlayerInfo,
+  UpstreamKeyFlyOptions,
+  UpstreamKeySetup,
   VideoMixerAdapter,
   VideoMixerDownstreamKeyerState,
   VideoMixerFadeToBlackState,
@@ -37,6 +39,13 @@ export interface AtemClient {
   setDownstreamKeyFillSource?(input: number, key?: number): Promise<void>;
   setDownstreamKeyCutSource?(input: number, key?: number): Promise<void>;
   setDownstreamKeyOnAir?(onAir: boolean, key?: number): Promise<void>;
+  setUpstreamKeyerOnAir?(onAir: boolean, me?: number, keyer?: number): Promise<void>;
+  setUpstreamKeyerType?(newProps: { mixEffectKeyType?: number }, me?: number, keyer?: number): Promise<void>;
+  setUpstreamKeyerFillSource?(fillSource: number, me?: number, keyer?: number): Promise<void>;
+  setUpstreamKeyerCutSource?(cutSource: number, me?: number, keyer?: number): Promise<void>;
+  setUpstreamKeyerDVESettings?(newProps: { flyEnabled?: boolean; rate?: number }, me?: number, keyer?: number): Promise<void>;
+  runUpstreamKeyerFlyKeyTo?(mixEffect: number, upstreamKeyerId: number, keyFrameId: number): Promise<void>;
+  runUpstreamKeyerFlyKeyToInfinite?(mixEffect: number, upstreamKeyerId: number, direction: number): Promise<void>;
 }
 
 export interface AtemAdapterOptions {
@@ -290,6 +299,79 @@ export class AtemAdapter implements VideoMixerAdapter {
     await client.setMediaPlayerSource({ sourceType: 1, stillIndex: setup.stillIndex }, setup.mediaPlayer);
     await client.setDownstreamKeyFillSource(setup.fillInput, setup.dsk);
     await client.setDownstreamKeyCutSource(setup.cutInput, setup.dsk);
+  }
+
+  async setUpstreamKeyOnAir(uskIndex: number, onAir: boolean): Promise<void> {
+    this.requireConnected();
+    const client = this.requireClient();
+    if (!client.setUpstreamKeyerOnAir) throw new Error("ATEM client does not support upstream keyer control");
+    await client.setUpstreamKeyerOnAir(onAir, this.meIndex, uskIndex);
+  }
+
+  async setupUpstreamKey(setup: UpstreamKeySetup): Promise<void> {
+    this.requireConnected();
+    const client = this.requireClient();
+    const usk = setup.usk;
+
+    if (setup.mediaPlayer !== undefined && setup.stillIndex !== undefined && client.setMediaPlayerSource) {
+      await client.setMediaPlayerSource({ sourceType: 1, stillIndex: setup.stillIndex }, setup.mediaPlayer);
+    }
+
+    if (client.setUpstreamKeyerType) {
+      // 3 = DVE in ATEM MixEffectKeyType enum
+      const keyType = setup.type === "luma" ? 0 : setup.type === "chroma" ? 1 : setup.type === "pattern" ? 2 : 3;
+      await client.setUpstreamKeyerType({ mixEffectKeyType: keyType }, this.meIndex, usk);
+    }
+
+    // Default fill/cut to Media Player 1 (3010 / 3011) or Media Player 2 (3020 / 3021)
+    const defaultFill = (setup.mediaPlayer ?? 0) === 1 ? 3020 : 3010;
+    const defaultCut = (setup.mediaPlayer ?? 0) === 1 ? 3021 : 3011;
+
+    if (client.setUpstreamKeyerFillSource) {
+      await client.setUpstreamKeyerFillSource(setup.fillInput ?? defaultFill, this.meIndex, usk);
+    }
+    if (client.setUpstreamKeyerCutSource) {
+      await client.setUpstreamKeyerCutSource(setup.cutInput ?? defaultCut, this.meIndex, usk);
+    }
+
+    if (client.setUpstreamKeyerDVESettings) {
+      await client.setUpstreamKeyerDVESettings({ flyEnabled: setup.flyEnabled !== false }, this.meIndex, usk);
+    }
+  }
+
+  async runUpstreamKeyFly(uskIndex: number, options: UpstreamKeyFlyOptions): Promise<void> {
+    this.requireConnected();
+    const client = this.requireClient();
+
+    if (options.rate && client.setUpstreamKeyerDVESettings) {
+      await client.setUpstreamKeyerDVESettings({ rate: options.rate }, this.meIndex, uskIndex);
+    }
+
+    if (options.keyFrame) {
+      if (!client.runUpstreamKeyerFlyKeyTo) throw new Error("ATEM client does not support fly key");
+      const kfMap: Record<string, number> = { a: 1, b: 2, full: 3, infinite: 4 };
+      const kf = kfMap[options.keyFrame] ?? 1;
+      await client.runUpstreamKeyerFlyKeyTo(this.meIndex, uskIndex, kf);
+      return;
+    }
+
+    if (options.direction) {
+      if (!client.runUpstreamKeyerFlyKeyToInfinite) throw new Error("ATEM client does not support fly key infinite");
+      const dirMap: Record<string, number> = {
+        centre: 0,
+        "top-left": 1,
+        top: 2,
+        "top-right": 3,
+        left: 4,
+        middle: 5,
+        right: 6,
+        "bottom-left": 7,
+        bottom: 8,
+        "bottom-right": 9,
+      };
+      const dir = dirMap[options.direction] ?? 4;
+      await client.runUpstreamKeyerFlyKeyToInfinite(this.meIndex, uskIndex, dir);
+    }
   }
 
   async clearStill(stillIndex: number): Promise<void> {

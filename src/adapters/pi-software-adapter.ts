@@ -1,6 +1,8 @@
 import type {
   DownstreamKeySetup,
   MediaPlayerInfo,
+  UpstreamKeyFlyOptions,
+  UpstreamKeySetup,
   VideoMixerAdapter,
   VideoMixerInput,
   VideoMixerState,
@@ -157,6 +159,18 @@ export class PiSoftwareAdapter implements VideoMixerAdapter {
   }
 
   async setupDownstreamKey(_setup: DownstreamKeySetup): Promise<void> {
+    this.notify();
+  }
+
+  async setUpstreamKeyOnAir(_uskIndex: number, _onAir: boolean): Promise<void> {
+    this.notify();
+  }
+
+  async setupUpstreamKey(_setup: UpstreamKeySetup): Promise<void> {
+    this.notify();
+  }
+
+  async runUpstreamKeyFly(_uskIndex: number, _options: UpstreamKeyFlyOptions): Promise<void> {
     this.notify();
   }
 

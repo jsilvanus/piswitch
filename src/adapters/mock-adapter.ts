@@ -1,10 +1,13 @@
 import type {
   DownstreamKeySetup,
   MediaPlayerInfo,
+  UpstreamKeyFlyOptions,
+  UpstreamKeySetup,
   VideoMixerAdapter,
   VideoMixerInput,
   VideoMixerState,
   VideoMixerStateListener,
+  VideoMixerUpstreamKeyerState,
 } from "../types.js";
 
 export interface MockAdapterOptions {
@@ -26,6 +29,12 @@ export class MockAdapter implements VideoMixerAdapter {
     { dsk: 2, onAir: false, tie: false, inTransition: false },
     { dsk: 3, onAir: false, tie: false, inTransition: false },
     { dsk: 4, onAir: false, tie: false, inTransition: false },
+  ];
+  private uskStates: VideoMixerUpstreamKeyerState[] = [
+    { usk: 1, onAir: false, flyEnabled: true },
+    { usk: 2, onAir: false, flyEnabled: true },
+    { usk: 3, onAir: false, flyEnabled: true },
+    { usk: 4, onAir: false, flyEnabled: true },
   ];
   private inputs: VideoMixerInput[];
   private listeners: VideoMixerStateListener[] = [];
@@ -63,6 +72,7 @@ export class MockAdapter implements VideoMixerAdapter {
         remainingFrames: 0,
       },
       downstreamKeyers: this.dskStates.map((d) => ({ ...d })),
+      upstreamKeyers: this.uskStates.map((u) => ({ ...u })),
       inputs: this.inputs.map((i) => ({ ...i })),
     };
   }
@@ -120,6 +130,37 @@ export class MockAdapter implements VideoMixerAdapter {
 
   async setupDownstreamKey(_setup: DownstreamKeySetup): Promise<void> {
     this.notify();
+  }
+
+  async setUpstreamKeyOnAir(uskIndex: number, onAir: boolean): Promise<void> {
+    const keyer = this.uskStates[uskIndex];
+    if (keyer) {
+      keyer.onAir = onAir;
+      this.notify();
+    }
+  }
+
+  async setupUpstreamKey(setup: UpstreamKeySetup): Promise<void> {
+    const keyer = this.uskStates[setup.usk];
+    if (keyer) {
+      if (setup.flyEnabled !== undefined) keyer.flyEnabled = setup.flyEnabled;
+    }
+    if (setup.mediaPlayer !== undefined && setup.stillIndex !== undefined) {
+      this.mediaPlayers.set(setup.mediaPlayer + 1, {
+        sourceType: "still",
+        stillSlot: setup.stillIndex + 1,
+      });
+    }
+    this.notify();
+  }
+
+  async runUpstreamKeyFly(uskIndex: number, _options: UpstreamKeyFlyOptions): Promise<void> {
+    const keyer = this.uskStates[uskIndex];
+    if (keyer) {
+      // Mock toggles onAir to true if not already on air
+      keyer.onAir = true;
+      this.notify();
+    }
   }
 
   async uploadStill(slotIndex: number, rgba: Buffer, name: string): Promise<void> {

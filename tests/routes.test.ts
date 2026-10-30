@@ -154,3 +154,40 @@ test("422 returned for invalid input values", async () => {
 
   await app.close();
 });
+
+test("PUT and POST USK controls setup, on-air, and DVE fly key", async () => {
+  const mixer = new MockAdapter();
+  const { app } = buildApp(loadConfig({ PISWITCH_BACKEND: "mock" }), mixer);
+
+  // Setup USK 1 with Media Player 1, slot 7, DVE type
+  const setupRes = await app.inject({
+    method: "PUT",
+    url: "/api/v1/video-mixer/usk/1/setup",
+    payload: {
+      mediaPlayer: 1,
+      slot: 7,
+      type: "dve",
+      flyEnabled: true,
+    },
+  });
+  assert.equal(setupRes.statusCode, 200);
+
+  // Trigger Fly key in from Left
+  const flyRes = await app.inject({
+    method: "POST",
+    url: "/api/v1/video-mixer/usk/1/fly",
+    payload: { direction: "left" },
+  });
+  assert.equal(flyRes.statusCode, 200);
+  assert.equal(flyRes.json().ok, true);
+
+  // Turn USK 1 off air
+  const offRes = await app.inject({
+    method: "PUT",
+    url: "/api/v1/video-mixer/usk/1/on-air",
+    payload: { onAir: false },
+  });
+  assert.equal(offRes.statusCode, 200);
+
+  await app.close();
+});
