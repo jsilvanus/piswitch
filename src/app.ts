@@ -5,17 +5,20 @@ import type { VideoMixerAdapter } from "./types.js";
 import { AtemAdapter } from "./adapters/atem-adapter.js";
 import { PiSoftwareAdapter } from "./adapters/pi-software-adapter.js";
 import { MockAdapter } from "./adapters/mock-adapter.js";
+import { RoutingStore } from "./routing/routing-store.js";
 import { registerStatusRoutes } from "./routes/status-routes.js";
 import { registerEventsRoutes } from "./routes/events-routes.js";
 import { registerVideoMixerRoutes } from "./routes/video-mixer-routes.js";
+import { registerRoutingRoutes } from "./routes/routing-routes.js";
 
 export interface BuildAppResult {
   app: FastifyInstance;
   mixer: VideoMixerAdapter;
   eventBroker: SwitchEventBroker;
+  routingStore: RoutingStore;
 }
 
-export function buildApp(config: AppConfig, customMixer?: VideoMixerAdapter): BuildAppResult {
+export function buildApp(config: AppConfig, customMixer?: VideoMixerAdapter, customRoutingStore?: RoutingStore): BuildAppResult {
   const app = Fastify({
     trustProxy: true,
     logger: {
@@ -24,6 +27,12 @@ export function buildApp(config: AppConfig, customMixer?: VideoMixerAdapter): Bu
   });
 
   const eventBroker = new SwitchEventBroker();
+  const routingStore =
+    customRoutingStore ??
+    new RoutingStore({
+      atemDynamicInput: config.atemDynamicInput,
+      atlonaAtemOutput: config.atlonaAtemOutput,
+    });
 
   let mixer: VideoMixerAdapter;
   if (customMixer) {
@@ -73,6 +82,7 @@ export function buildApp(config: AppConfig, customMixer?: VideoMixerAdapter): Bu
   registerStatusRoutes(app, mixer);
   registerEventsRoutes(app, eventBroker, mixer);
   registerVideoMixerRoutes(app, mixer);
+  registerRoutingRoutes(app, routingStore);
 
-  return { app, mixer, eventBroker };
+  return { app, mixer, eventBroker, routingStore };
 }

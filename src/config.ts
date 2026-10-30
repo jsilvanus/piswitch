@@ -6,6 +6,10 @@ export interface AppConfig {
   atemPort: number;
   apiKey?: string | undefined;
   allowedHosts: string[];
+  atemDynamicInput: number;
+  atlonaAtemOutput: number;
+  pimatrixUrl?: string | undefined;
+  pigatewayUrl?: string | undefined;
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
@@ -33,5 +37,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     atemPort: Number.isInteger(atemPort) && atemPort > 0 ? atemPort : 9910,
     apiKey: env.PISWITCH_API_KEY?.trim() || undefined,
     allowedHosts,
+    atemDynamicInput: Number(env.PISWITCH_ATEM_DYNAMIC_INPUT || 4),
+    atlonaAtemOutput: Number(env.PISWITCH_ATLONA_ATEM_OUTPUT || 5),
+    pimatrixUrl: env.PISWITCH_PIMATRIX_URL?.trim() || undefined,
+    pigatewayUrl: env.PISWITCH_PIGATEWAY_URL?.trim() || undefined,
   };
 }
