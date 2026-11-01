@@ -17,7 +17,7 @@ Backward-compatible `/api/v1/atem/*` endpoints and event channels are preserved 
    [ picontrol Web UI & CLI ]
                 │
                 ▼
-          [ piswitch ] (:3106)
+          [ piswitch ] (:3103)
           /    │     \
          /     │      \
         ▼      │       ▼
@@ -25,7 +25,7 @@ Backward-compatible `/api/v1/atem/*` endpoints and event channels are preserved 
  (SDI / Mini)       (MediaMTX + Phone feeds)
 ```
 
-- **Port**: `3106` (adjacent to `pigateway` :3100 and `pitube` :3105).
+- **Port**: `3103` (adjacent to `pigateway` :3000 and `pitube` :3500).
 - **SSE Events**: `GET /api/v1/events` pushes `{ type: "video-mixer", data: state }` and `{ type: "atem", data: state }`.
 
 ---
@@ -88,7 +88,7 @@ piswitch phone remove 5
 Copy `.env.example` to `.env`:
 
 ```env
-PISWITCH_PORT=3106
+PISWITCH_PORT=3103
 PISWITCH_BACKEND=atem # atem | pi | mock
 PISWITCH_ATEM_HOST=192.168.1.20
 PISWITCH_ATEM_PORT=9910
@@ -100,11 +100,11 @@ PISWITCH_ATEM_PORT=9910
 
 ```bash
 # Run unit tests
-npm test
+pnpm test
 
 # Build TypeScript
-npm run build
+pnpm run build
 
 # Start dev server with watch
-npm run dev
+pnpm run dev
 ```

@@ -4,6 +4,7 @@
   "description": "Universal video mixer service and CLI for Raspberry Pi: ATEM hardware switchers, software mixing, and phone camera feeds",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.23.0",
   "engines": {
     "node": ">=22"
   },
@@ -30,5 +31,14 @@
     "dist",
     "bin",
     "openapi"
-  ]
+  ],
+  "pi": {
+    "service": "piswitch",
+    "displayName": "PiSwitch",
+    "layer": "Layer 1: Southbound hardware",
+    "port": 3103,
+    "ports": {},
+    "healthEndpoint": "/health",
+    "envPortVar": "PISWITCH_PORT"
+  }
 }

@@ -8,7 +8,7 @@ export interface CliOptions {
 }
 
 function parseCliArgs(argv: string[]): CliOptions {
-  let url = process.env.PISWITCH_URL || "http://127.0.0.1:3106";
+  let url = process.env.PISWITCH_URL || "http://127.0.0.1:3103";
   let apiKey = process.env.PISWITCH_API_KEY;
   let json = false;
   const args: string[] = [];
@@ -254,7 +254,7 @@ export async function runCli(argv: string[]): Promise<number> {
         console.log("  phone add <id> <name> [url] Register a phone camera feed");
         console.log("  phone remove <id>          Remove a phone camera feed");
         console.log("\nOptions:");
-        console.log("  --url <url>                piswitch server URL (default: http://127.0.0.1:3106)");
+        console.log("  --url <url>                piswitch server URL (default: http://127.0.0.1:3103)");
         console.log("  --key <apiKey>             API key if required");
         console.log("  --json                     Output JSON format");
         return 0;
