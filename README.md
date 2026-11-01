@@ -100,11 +100,11 @@ PISWITCH_ATEM_PORT=9910
 
 ```bash
 # Run unit tests
-npm test
+pnpm test
 
 # Build TypeScript
-npm run build
+pnpm run build
 
 # Start dev server with watch
-npm run dev
+pnpm run dev
 ```
