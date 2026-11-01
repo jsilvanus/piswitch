@@ -80,7 +80,7 @@ test("MatrixRouter - auto-routes matrix when pastorphone / RTMP camera is select
   const store = new RoutingStore();
   const config = loadConfig({
     PISWITCH_BACKEND: "mock",
-    PISWITCH_PIGATEWAY_URL: "http://gateway.test:3100",
+    PISWITCH_PIGATEWAY_URL: "http://gateway.test:3000",
   });
 
   const { MatrixRouter } = await import("../src/routing/matrix-router.js");
@@ -112,7 +112,7 @@ test("MatrixRouter - auto-routes matrix when pastorphone / RTMP camera is select
 
   // Verify piswitch ran the matrix route command:
   assert.equal(matrixCalls.length, 1);
-  assert.equal(matrixCalls[0].url, "http://gateway.test:3100/api/v1/matrix/route");
+  assert.equal(matrixCalls[0].url, "http://gateway.test:3000/api/v1/matrix/route");
   assert.equal(matrixCalls[0].body.input, 3); // Atlona input for Pi1
   assert.equal(matrixCalls[0].body.output, 5); // Atlona output for Videomixer
 

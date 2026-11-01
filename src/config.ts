@@ -30,7 +30,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     .filter(Boolean);
 
   return {
-    port: Number(env.PISWITCH_PORT || 3106),
+    port: Number(env.PISWITCH_PORT || 3103),
     host: env.PISWITCH_HOST || "0.0.0.0",
     backend,
     atemHost,

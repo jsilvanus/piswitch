@@ -36,7 +36,7 @@
     "service": "piswitch",
     "displayName": "PiSwitch",
     "layer": "southbound-hardware",
-    "port": 3106,
+    "port": 3103,
     "ports": {},
     "healthEndpoint": "/health",
     "envPortVar": "PISWITCH_PORT"
