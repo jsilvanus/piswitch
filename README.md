@@ -108,3 +108,13 @@ pnpm run build
 # Start dev server with watch
 pnpm run dev
 ```
+
+---
+
+## Pi Ecosystem Integration & Status Updates
+
+This project is an integral component of the [Pi Production Ecosystem](file:///d:/piecosystem).
+
+> [!IMPORTANT]
+> Any changes to this repository's architectural role, API routes, communication protocols, exposed ports, dependencies, or runtime status **must be documented in the central `piecosystem` coordination repository** (`docs/projects-catalog.md` and `docs/inter-service-matrix.md`).
+> Always verify cross-system health with `npm run status` in `D:\piecosystem`.
