@@ -92,6 +92,8 @@ PISWITCH_PORT=3103
 PISWITCH_BACKEND=atem # atem | pi | mock
 PISWITCH_ATEM_HOST=192.168.1.20
 PISWITCH_ATEM_PORT=9910
+PISWITCH_STATE_MIN_INTERVAL_MS=100 # min ms between ATEM state notifications, 0 = off (trailing emit keeps final state)
+PISWITCH_LOG_ATEM_PATHS=1 # optional: log changed ATEM state path counts every 10 s
 ```
 
 ---

@@ -55,6 +55,18 @@ export interface AtemAdapterOptions {
   connectWarnMs?: number;
   reconnectMinMs?: number;
   reconnectMaxMs?: number;
+  /** Minimum ms between listener notifications; 0 disables coalescing. Default 100. */
+  stateMinIntervalMs?: number;
+  /** Log counts of changed state paths every 10 s (to find noisy sources). */
+  logPaths?: boolean;
+}
+
+export const ATEM_STATE_MIN_INTERVAL_MS = 100;
+export const ATEM_PATH_LOG_INTERVAL_MS = 10000;
+
+/** State paths that getState() reads. Everything else (audio, timecode, media, ...) is ignored. */
+export function isRelevantAtemPath(path: string): boolean {
+  return path.startsWith("video.mixEffects") || path.startsWith("video.downstreamKeyers");
 }
 
 const IDLE_TRANSITION: VideoMixerTransitionState = { inTransition: false, remainingFrames: 0 };
@@ -85,6 +97,14 @@ export class AtemAdapter implements VideoMixerAdapter {
   private target: { host: string; port: number } | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelayMs: number;
+  private readonly stateMinIntervalMs: number;
+  private readonly logPaths: boolean;
+  private lastSignature: string | null = null;
+  private lastEmitAt = 0;
+  private emitTimer: ReturnType<typeof setTimeout> | null = null;
+  private pathCounts = new Map<string, number>();
+  private pathEvents = 0;
+  private pathLogTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: AtemAdapterOptions = {}) {
     this.meIndex = options.meIndex ?? 0;
@@ -94,6 +114,8 @@ export class AtemAdapter implements VideoMixerAdapter {
     this.reconnectMinMs = options.reconnectMinMs ?? ATEM_RECONNECT_MIN_MS;
     this.reconnectMaxMs = options.reconnectMaxMs ?? ATEM_RECONNECT_MAX_MS;
     this.reconnectDelayMs = this.reconnectMinMs;
+    this.stateMinIntervalMs = Math.max(0, options.stateMinIntervalMs ?? ATEM_STATE_MIN_INTERVAL_MS);
+    this.logPaths = options.logPaths ?? false;
   }
 
   async connect(host?: string, port: number = DEFAULT_ATEM_PORT): Promise<void> {
@@ -148,9 +170,13 @@ export class AtemAdapter implements VideoMixerAdapter {
       this.scheduleReconnect();
     });
 
-    client.on("stateChanged", () => {
-      if (this.client === client && this.connected) this.emit();
-    });
+    client.on("stateChanged", ((_state: unknown, paths?: unknown) => {
+      if (this.client !== client || !this.connected) return;
+      const list = Array.isArray(paths) ? paths.filter((p): p is string => typeof p === "string") : null;
+      if (this.logPaths) this.countPaths(list);
+      if (list && list.length > 0 && !list.some(isRelevantAtemPath)) return;
+      this.emitCoalesced();
+    }) as (...args: never[]) => void);
 
     client.on("error", (error: unknown) => {
       if (this.client !== client) return;
@@ -415,9 +441,55 @@ export class AtemAdapter implements VideoMixerAdapter {
     if (!this.connected) throw new Error("ATEM is not connected");
   }
 
-  private emit(): void {
+  /** Emit now when the interval allows, else schedule one trailing emit. */
+  private emitCoalesced(): void {
+    if (this.emitTimer) return;
+    const wait = this.lastEmitAt + this.stateMinIntervalMs - Date.now();
+    if (this.stateMinIntervalMs <= 0 || wait <= 0) {
+      this.emitIfChanged();
+      return;
+    }
+    this.emitTimer = setTimeout(() => {
+      this.emitTimer = null;
+      this.emitIfChanged();
+    }, wait);
+    this.emitTimer.unref();
+  }
+
+  private emitIfChanged(): void {
     const state = this.getState();
+    const signature = JSON.stringify(state);
+    if (signature === this.lastSignature) return;
+    this.lastSignature = signature;
+    this.lastEmitAt = Date.now();
     for (const listener of this.listeners) listener(state);
+  }
+
+  /** Connect/disconnect transitions always go out at once (and cancel a pending trailing emit). */
+  private emit(): void {
+    if (this.emitTimer) clearTimeout(this.emitTimer);
+    this.emitTimer = null;
+    this.emitIfChanged();
+  }
+
+  private countPaths(paths: string[] | null): void {
+    this.pathEvents++;
+    for (const path of paths ?? ["(none)"]) {
+      const key = path.split(".").slice(0, 2).join(".");
+      this.pathCounts.set(key, (this.pathCounts.get(key) ?? 0) + 1);
+    }
+    if (this.pathLogTimer) return;
+    this.pathLogTimer = setTimeout(() => {
+      this.pathLogTimer = null;
+      const top = [...this.pathCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15);
+      this.logger?.info?.(
+        { events: this.pathEvents, paths: Object.fromEntries(top) },
+        "ATEM stateChanged paths in last 10 s"
+      );
+      this.pathCounts.clear();
+      this.pathEvents = 0;
+    }, ATEM_PATH_LOG_INTERVAL_MS);
+    this.pathLogTimer.unref();
   }
 }
 
