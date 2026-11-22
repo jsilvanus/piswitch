@@ -10,6 +10,8 @@ export interface AppConfig {
   atlonaAtemOutput: number;
   pimatrixUrl?: string | undefined;
   pigatewayUrl?: string | undefined;
+  stateMinIntervalMs: number;
+  logAtemPaths: boolean;
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
@@ -41,5 +43,13 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     atlonaAtemOutput: Number(env.PISWITCH_ATLONA_ATEM_OUTPUT || 5),
     pimatrixUrl: env.PISWITCH_PIMATRIX_URL?.trim() || undefined,
     pigatewayUrl: env.PISWITCH_PIGATEWAY_URL?.trim() || undefined,
+    stateMinIntervalMs: parseMinInterval(env.PISWITCH_STATE_MIN_INTERVAL_MS),
+    logAtemPaths: env.PISWITCH_LOG_ATEM_PATHS === "1",
   };
+}
+
+function parseMinInterval(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === "") return 100;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : 100;
 }

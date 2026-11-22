@@ -42,7 +42,11 @@ export function buildApp(config: AppConfig, customMixer?: VideoMixerAdapter, cus
   if (customMixer) {
     mixer = customMixer;
   } else if (config.backend === "atem") {
-    mixer = new AtemAdapter({ logger: app.log });
+    mixer = new AtemAdapter({
+      logger: app.log,
+      stateMinIntervalMs: config.stateMinIntervalMs,
+      logPaths: config.logAtemPaths,
+    });
   } else if (config.backend === "mock") {
     mixer = new MockAdapter();
   } else {
